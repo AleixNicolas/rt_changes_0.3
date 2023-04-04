@@ -95,6 +95,8 @@ INFILE2 same as OUPTUT in changes.py
 The paramenter -i waits for two dates separated by a comma (eg: start_time,end_time) the format should be according
 YYYY-MM-DD-HH:MM:SS.
 
+!! Use the same Interval used to create INFILE2 with changes.py
+
 ## Granularity
 
 Some allowed values are:
@@ -106,6 +108,8 @@ Some allowed values are:
 * S: Seconds
 
 A complete description of allowed aliases can be found at: https://pandas.pydata.org/pandas-docs/stable/user_guide/timeseries.html#offset-aliases
+
+!! Use the same Granularity used to create INFILE2 with changes.py
 
 ## Algorithm
 

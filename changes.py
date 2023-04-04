@@ -139,7 +139,7 @@ def main(infile: TextIOWrapper,
     number_of_line = 0
     for line in csv_file:
         if number_of_line > 0:
-            sum_score = sum([float(x) for x in line[2:]])
+            sum_score = max([float(x) for x in line[2:]])
             if sum_score >= threshold:
                 line_to_write = ','.join(line)
                 f_output.write(line_to_write+"\n")
