@@ -14,9 +14,9 @@ from io import TextIOWrapper
 logging.getLogger().setLevel(logging.INFO)
     
 @click.command()
-@click.option('-a', '--alpha', type=click.FLOAT, required=False, default='0.005')
-@click.option('-g', '--granularity', required=False, default='M', type=click.STRING)
-@click.option('-t', '--threshold', required=False, default='2.0', type=click.FLOAT)
+@click.option('-a', '--alpha', type=click.FLOAT, required=False, default='1')
+@click.option('-g', '--granularity', required=False, default=None, type=click.STRING)
+@click.option('-t', '--threshold', required=False, default=None, type=click.FLOAT)
 @click.option('-i', '--interval', required=False, type=click.STRING)
 @click.option('-m', '--method', type=click.STRING, default = 'ward')
 @click.option('-l', '--algorithm', type=click.STRING, default = 'generic')
@@ -42,6 +42,7 @@ def main(infile1: TextIOWrapper,
     if algorithm == 'nn_chain' and method != 'ward':
         raise click.BadOptionUsage('method', 'Non valid method; for nn_chain algorithm; method must be ward; default is ward')
     
+    
     #Check for interval validity
     is_interval = False
     start_time = None
@@ -53,41 +54,67 @@ def main(infile1: TextIOWrapper,
         start_time = pd.to_datetime(splitted_time[0], utc=True)
         end_time = pd.to_datetime(splitted_time[1], utc=True)
         
-    if granularity is not None:
-        date_range = pd.date_range(start_time, end_time, freq=granularity)
-    
     if alpha !=1:
         total_seconds = int(-3600*24/(np.log(alpha)))
         time_delta =pd.to_timedelta(total_seconds, unit = 'S')
-
-    for i in range(len(date_range)-1):
         
-        logging.info('Computing at interval'+str(i+1)+'/'+str(len(date_range)))
-             
+    if granularity is not None:
+        date_range = pd.date_range(start_time, end_time, freq=granularity)
+        for i in range(len(date_range)-1):
+            
+            logging.info('Computing at interval'+str(i+1)+'/'+str(len(date_range)))
+                 
+            logging.info('Filtering users...')
+            elites = filter_elites(infile2, threshold, i)
+            
+            if len(elites) > 1: 
+                    
+                logging.info('Generating connectivity net...')
+                if alpha!=1:
+                    connectivity = compute_connectivity(elites, infile1, is_interval, date_range[i+1]-time_delta, date_range[i+1])
+                else:
+                    connectivity = compute_connectivity(elites, infile1, is_interval, date_range[0], date_range[i+1])
+                
+                logging.info('Computing phi and alpha')          
+                phi, d = compute_phi_d(elites, connectivity)
+                
+                y = ssd.squareform(d)
+                
+                # Call clustering.py with the appropriate algorithm and method.
+                # clustering.py calculates linkage matrix and polarization 
+                logging.info('Computing clusters...')    
+                Z, pol = cl.agglomerative_clustering(y, method = method, alpha = 1, K=None, verbose = 0, algorithm=algorithm)
+                print(Z)
+                print(pol)
+                
+                logging.info('Plotting dendrogram')  
+                plot_dendrogram(elites, Z, pol, date_range[i+1]) 
+                
+            else:
+                logging.info('Not enough elites.')
+                
+    else:
         logging.info('Filtering users...')
-        elites = filter_elites(infile2, threshold, i)
+        elites = filter_elites(infile2, threshold, 0)
         
         if len(elites) > 1: 
+            connectivity = compute_connectivity(elites, infile1, is_interval, None, None)
                 
-            logging.info('Generating connectivity net...')
-            if alpha!=1:
-                connectivity = compute_connectivity(elites, infile1, is_interval, date_range[i+1]-time_delta, date_range[i+1])
-            else:
-                connectivity = compute_connectivity(elites, infile1, is_interval, date_range[0]-time_delta, date_range[i+1])
-            
             logging.info('Computing phi and alpha')          
             phi, d = compute_phi_d(elites, connectivity)
-            
+                
             y = ssd.squareform(d)
-            
+                
             # Call clustering.py with the appropriate algorithm and method.
             # clustering.py calculates linkage matrix and polarization 
             logging.info('Computing clusters...')    
             Z, pol = cl.agglomerative_clustering(y, method = method, alpha = 1, K=None, verbose = 0, algorithm=algorithm)
-            
+            print(Z)
+            print(pol)
+                
             logging.info('Plotting dendrogram')  
-            plot_dendrogram(elites, Z, date_range[i+1]) 
-            
+            plot_dendrogram(elites, Z, pol, 'Accumulated') 
+                
         else:
             logging.info('Not enough elites.')
             
@@ -121,6 +148,7 @@ def filter_elites(infile2, threshold, i):
 # connectivity is an array of vectors the vectors of retweeting users for 
 # each corresponding elite. 0 not retweeted, 1 retweeted
 def compute_connectivity(elites, infile1, is_interval, start_time, end_time):
+    print(is_interval)
     connectivity = np.zeros((len(elites),2), dtype=bool)
     vector0 = np.zeros((len(elites)), dtype=bool)
     retweeters ={}
@@ -176,13 +204,18 @@ def  compute_phi_d(elites, connectivity):
     return phi, d
 
 # Plot dendrogram
-def plot_dendrogram(elites, Z, date):
+def plot_dendrogram(elites, Z, pol, date):
     plt.figure()
     fig, ax = plt.subplots(figsize=(10, 5))
     elite_authors=np.fromiter(elites.keys(),dtype="<U20")
-    dendro = sch.dendrogram(Z, labels=elite_authors, ax=ax, orientation='top', distance_sort='ascending')
+    dendro = sch.dendrogram(Z, labels=elite_authors, ax=ax, orientation='top', distance_sort='ascending', color_threshold = 1*max(Z[:,2]))
     plt.xticks(rotation=45, ha='right')
-    plt.savefig(str(date)[0:10]+'.png', format='png', bbox_inches='tight', dpi=1200)   
+    plt.savefig('dendrogram_'+str(date)[0:10]+'.png', format='png', bbox_inches='tight', dpi=1200)   
+
+    plt.figure()
+    plt.plot(pol)
+    plt.savefig('polarisation_'+str(date)[0:10]+'.png', format='png', bbox_inches='tight', dpi=1200)   
+    
 
 def set_score_value(username, score, dictionary):
     dictionary[username] = score

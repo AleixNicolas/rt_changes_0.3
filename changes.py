@@ -31,19 +31,23 @@ def compute_score(username, count, alpha, dictionary):
 
 
 @click.command()
-@click.option('-a', '--alpha', type=click.FLOAT, required=False, default='0.005')
-@click.option('-g', '--granularity', required=False, default='M', type=click.STRING)
+@click.option('-a', '--alpha', type=click.FLOAT, required=False, default='1')
+@click.option('-g', '--granularity', required=False, default=None, type=click.STRING)
 @click.option('-t', '--threshold', required=False, default='2.0', type=click.FLOAT)
 @click.option('-i', '--interval', required=False, type=click.STRING)
+@click.option('-o', 'outfile', required=False, type=click.STRING, default='-')
 @click.argument('infile', type=click.File('r'), default='-')
-@click.argument('outfile', type=click.STRING, default='-')
 
 def main(infile: TextIOWrapper,
-         outfile: str,
          alpha: float,
          threshold: float,
          granularity: str,
-         interval: str):
+         interval: str,
+         outfile: str):
+    
+    if outfile == '-':
+        outfile = str(infile.name.split('.')[0])+'_elites.csv'
+        print(outfile)
 
     first_temporal_csv = generate_random_file_name()
 
@@ -91,9 +95,11 @@ def main(infile: TextIOWrapper,
         logging.info("No users to process")
         return
     df = df.dropna()
-    df['created_at'] = pd.to_datetime(df['created_at']).dt.to_period(granularity)
-    unique_dates = list(df.created_at.unique())
-    unique_dates.sort()
+    if granularity is not None:
+        df['created_at'] = pd.to_datetime(df['created_at']).dt.to_period(granularity)    
+        unique_dates = list(df.created_at.unique())
+        unique_dates.sort()
+        
     unique_usernames = set(df.author_name.unique())
 
     dictionary_periods = dict()
@@ -104,9 +110,12 @@ def main(infile: TextIOWrapper,
     second_temporal_csv = generate_random_file_name()
     f_temp_output = open(second_temporal_csv, 'w', encoding="utf-8")
     f_temp_output.write("profile_image_url,author_name")
-    for unique_date in unique_dates:
-        unique_date_str: str = str(unique_date).split('/')[0]
-        f_temp_output.write(',' + str(unique_date_str).replace(' ', '_'))
+    if granularity is not None:
+        for unique_date in unique_dates:
+            unique_date_str: str = str(unique_date).split('/')[0]
+            f_temp_output.write(',' + str(unique_date_str).replace(' ', '_'))
+    else:
+        f_temp_output.write(',' + str('Accumulated'))    
     f_temp_output.write("\n")
 
 
@@ -118,11 +127,16 @@ def main(infile: TextIOWrapper,
         f_temp_output.write(profile_image_dictionary[user])
         f_temp_output.write(","+user)
         df_filtered_user = df[df['author_name'] == user]
-        for date_period in unique_dates:
-            df_filtered = df_filtered_user[df_filtered_user['created_at'] == date_period]
-            number_of_rts = len(df_filtered.index)
+        if granularity is not None:
+            for date_period in unique_dates:
+                df_filtered = df_filtered_user[df_filtered_user['created_at'] == date_period]
+                number_of_rts = len(df_filtered.index)
+                score = compute_score(user, number_of_rts, alpha, dictionary_periods)
+                f_temp_output.write("," + str(score))
+        else: 
+            number_of_rts = len(df_filtered_user.index)
             score = compute_score(user, number_of_rts, alpha, dictionary_periods)
-            f_temp_output.write("," + str(score))
+            f_temp_output.write("," + str(score))            
         f_temp_output.write("\n")
         logging.info('{}/{}'.format(user_count, total_users))
         user_count = user_count + 1
