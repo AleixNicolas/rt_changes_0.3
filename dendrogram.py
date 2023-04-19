@@ -16,7 +16,7 @@ logging.getLogger().setLevel(logging.INFO)
 @click.command()
 @click.option('-a', '--alpha', type=click.FLOAT, required=False, default='1')
 @click.option('-g', '--granularity', required=False, default=None, type=click.STRING)
-@click.option('-t', '--threshold', required=False, default=None, type=click.FLOAT)
+@click.option('-t', '--threshold', required=False, default='2.0', type=click.FLOAT)
 @click.option('-i', '--interval', required=False, type=click.STRING)
 @click.option('-m', '--method', type=click.STRING, default = 'ward')
 @click.option('-l', '--algorithm', type=click.STRING, default = 'generic')
@@ -31,6 +31,8 @@ def main(infile1: TextIOWrapper,
          interval: str,
          method: str,
          algorithm: str):
+    
+    print(threshold)
 
     # Exceptions for algorithm and method    
     if algorithm != 'nn_chain' and algorithm != 'generic':

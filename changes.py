@@ -45,6 +45,8 @@ def main(infile: TextIOWrapper,
          interval: str,
          outfile: str):
     
+    print(threshold)
+    
     if outfile == '-':
         outfile = str(infile.name.split('.')[0])+'_elites.csv'
         print(outfile)
