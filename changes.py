@@ -33,7 +33,7 @@ def compute_score(username, count, alpha, dictionary):
 @click.command()
 @click.option('-a', '--alpha', type=click.FLOAT, required=False, default='1')
 @click.option('-g', '--granularity', required=False, default=None, type=click.STRING)
-@click.option('-t', '--threshold', required=False, default='2.0', type=click.FLOAT)
+@click.option('-t', '--threshold', required=False, default=None, type=click.FLOAT)
 @click.option('-i', '--interval', required=False, type=click.STRING)
 @click.option('-o', 'outfile', required=False, type=click.STRING, default='-')
 @click.argument('infile', type=click.File('r'), default='-')
@@ -44,8 +44,6 @@ def main(infile: TextIOWrapper,
          granularity: str,
          interval: str,
          outfile: str):
-    
-    print(threshold)
     
     if outfile == '-':
         outfile = str(infile.name.split('.')[0])+'_elites.csv'
@@ -152,7 +150,21 @@ def main(infile: TextIOWrapper,
     f_temp_input = open(second_temporal_csv, 'r', encoding="utf-8")
     f_output = open(outfile, 'w', encoding='utf-8')
     csv_file = csv.reader(f_temp_input)
-    number_of_line = 0
+    
+    if threshold is None:
+        threshold = 0
+        number_of_line = 0
+        for line in csv_file:
+            if number_of_line > 0:
+                sum_score = max([float(x) for x in line[2:]])
+                threshold = max(threshold, 0.9*sum_score)
+            number_of_line += 1
+    
+    print('Threshold = '+str(threshold))
+    
+    f_temp_input.seek(0)
+    number_of_line = 0 
+     
     for line in csv_file:
         if number_of_line > 0:
             sum_score = max([float(x) for x in line[2:]])
@@ -161,7 +173,7 @@ def main(infile: TextIOWrapper,
                 f_output.write(line_to_write+"\n")
         else:
             f_output.write(','.join(line)+"\n")
-        number_of_line = number_of_line + 1
+        number_of_line += 1
 
     f_temp_input.close()
     f_output.close()
